@@ -1,0 +1,10 @@
+# IDE
+.ensime
+.ensime_cache
+.idea
+
+# sbt
+target
+
+# file
+*.*~
