@@ -249,7 +249,7 @@ object Parser {
   def literalRaw(lit: String): Parser[CharStream] = {
     val chars = lit.toCharArray
 
-    satisfies(lit.length, _.sameElements(chars)).withError(s"equal to ${chars.mkString("\"", "", "\"")}")
+    satisfies(lit.length, _.sameElements(chars)).withError(s"not equal to ${chars.mkString("\"", "", "\"")}")
   }
 
   val word = letters.left(whitespaces).map(_.mkString(""))

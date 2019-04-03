@@ -158,6 +158,19 @@ object ParserSpec extends Specification {
     }
   }
 
+  "token" >> {
+    "literal" >> {
+      evalAndCheckSuccess(literal("hello"), "hello", "", "hello")
+      evalAndCheckSuccess(literal("hello"), "hello, you", ", you", "hello")
+      evalAndCheckFailed(literal("hello"), "yello", "yello", FailedParserWithMsg("not equal to \"hello\"", ParserResult.Failed(FailedCondition("yello".toVector))))
+    }
+    
+    "words" >> {
+      evalAndCheckSuccess(word, "hello", "", "hello")
+      evalAndCheckSuccess(word, "hello    ", "", "hello")
+    }
+  }
+
   private def evalAndCheckSuccess[A](parser: Parser[A],
                                      input: String,
                                      remaining: String,
