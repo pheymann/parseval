@@ -9,147 +9,178 @@ object ParserRuntime {
 
   import Parser._
 
-  final case class FailedParserInternal(msg: String, cause: ParserState[Any]) extends ParserState.ParserError
-
   private type UnsafeFlatMap = Any => Parser[Any]
   private type IsBranch      = Boolean
   private type ErrorMsg      = Option[() => String]
   private type StackFrame    = (IsBranch, UnsafeFlatMap)
 
-  private final class RuntimeState(var current: Parser[Any],
-                                   var stream: CharStream) {
+  final case class FailedParserInternal(msg: String, cause: ParserState[Any]) extends ParserState.ParserError
 
-    val stack          = mutable.ArrayStack[StackFrame]()
-    val streamPointers = mutable.ArrayStack[(CharStream, ErrorMsg)]()
+  private[internal] final class RuntimeState(private var current: Parser[Any],
+                                             private var stream: CharStream) {
 
-    var errorMsg = Option.empty[() => String]
+    private val stack          = mutable.ArrayStack[StackFrame]()
+    private val streamPointers = mutable.ArrayStack[(CharStream, ErrorMsg)]()
 
-    var orBranches = 0
-    var cycleCount = 0
-  }
+    private var errorMsg = Option.empty[() => String]
 
-  private def popStack(state: RuntimeState): StackFrame =
-    if (state.stack.nonEmpty)
-      state.stack.pop()
-    else
-      null
+    private var orBranches = 0
+    private var cycleCount = 0
 
+    private def popStack(): StackFrame =
+      if (stack.nonEmpty)
+        stack.pop()
+      else
+        null
 
-  private def popStackUntilOrBranch(state: RuntimeState): Parser[Any] = {
-    var orBranch = popStack(state)
+    def stackFramesLeft: Boolean = stack.nonEmpty
 
-    while (!orBranch._1) {
-      orBranch = popStack(state)
+    def addStackFrame(f: Nothing => Parser[Any]): Unit =
+      stack.push((false, f.asInstanceOf[UnsafeFlatMap]))
+
+    def popStackFrame(): UnsafeFlatMap = {
+      var frame = popStack()
+
+      while (frame != null && frame._1) {
+        frame       = popStack()
+        orBranches -= 1
+
+        streamPointers.pop()
+      }
+
+      if (frame != null)
+        frame._2
+      else
+        null
     }
 
-    val (stream, errorMsg) = state.streamPointers.pop()
+    def orBranchesLeft: Boolean = orBranches > 0
 
-    state.stream      = stream
-    state.errorMsg    = errorMsg
-    state.orBranches -= 1
+    def addOrBranch(left: Parser[Any], right: Parser[Any]): Unit = {
+      setCurrent(left)
 
-    orBranch._2(())
-  }
+      orBranches += 1
 
-  private def popStackFrame(state: RuntimeState): UnsafeFlatMap = {
-    var frame = popStack(state)
-
-    while (frame != null && frame._1) {
-      frame             = popStack(state)
-      state.orBranches -= 1
-
-      state.streamPointers.pop()
+      stack.push((true, _ => right))
+      streamPointers.push((stream, errorMsg))
     }
 
-    if (frame != null)
-      frame._2
-    else
-      null
-  }
+    def popStackUntilOrBranch(): Parser[Any] = {
+      var orBranch = popStack()
 
-  private def toFailedParser(errorMsg: Option[() => String], cause: ParserState[Any]): ParserState[Any] =
-    errorMsg.fold(cause)(msg => ParserState.Failed(FailedParserInternal(msg(), cause)))
+      while (!orBranch._1) {
+        orBranch = popStack()
+      }
+
+      val (resetStream, resetErrorMsg) = streamPointers.pop()
+
+      stream      = resetStream
+      errorMsg    = resetErrorMsg
+      orBranches -= 1
+
+      orBranch._2(())
+    }
+
+    def enoughStreamChars(readCount: Int): Boolean = stream.length >= readCount
+
+    def remainingCharsCount: Int = stream.length
+
+    def splitStreamChars(readCount: Int): (CharStream, CharStream) = stream.splitAt(readCount)
+
+    def failedResultFromErrorMsg(cause: ParserState[Any]): ParserState[Any] =
+      errorMsg.fold(cause)(msg => ParserState.Failed(FailedParserInternal(msg(), cause)))
+
+    def incrCycleCount = cycleCount += 1
+
+    def produceResult(result: ParserState[Any]): (Int, CharStream, ParserState[Any]) =
+      (cycleCount, stream, result)
+
+    def getCurrent: Parser[Any] = current
+
+    def setCurrent(next: Parser[Any]): Unit = current = next
+
+    def getErrorMsg: ErrorMsg = errorMsg
+
+    def setErrorMsg(msg: () => String): Unit = errorMsg = Some(msg)
+
+    def setStream(remaining: CharStream): Unit = stream = remaining
+  }
 
   private[internal] def runUnsafe(parser: Parser[Any], inputStream: CharStream): (Int, CharStream, ParserState[Any]) = {
     val state = new RuntimeState(parser, inputStream)
 
-    var result: ParserState[Any] = null
+    var finalResult: ParserState[Any] = null
 
-    while (result == null || (!result.isSuccess && state.orBranches > 0)) {
-      state.current match {
+    while (finalResult == null || (!finalResult.isSuccess && state.orBranchesLeft)) {
+      state.getCurrent match {
         case Pure(value) =>
-          if (state.stack.nonEmpty && value.isSuccess) {
-            val frame = popStackFrame(state)
+          if (state.stackFramesLeft && value.isSuccess) {
+            val frame = state.popStackFrame()
 
             if (frame != null) {
-              state.current = frame(value.get)
+              state.setCurrent(frame(value.get))
             }
             else {
-              result = value
+              finalResult = value
             }
           }
-          else if (state.stack.nonEmpty && state.orBranches > 0) {
-            state.current = popStackUntilOrBranch(state)
+          else if (state.stackFramesLeft && state.orBranchesLeft) {
+            state.setCurrent(state.popStackUntilOrBranch())
           }
           else if (value.isSuccess) {
-            result = value
+            finalResult = value
           }
           else {
-            result = toFailedParser(state.errorMsg, value)
+            finalResult = state.failedResultFromErrorMsg(value)
           }
 
         case Rule(readCount, parse) =>
-          if (state.stream.length >= readCount) {
-            val (toProcess, remaining) = state.stream.splitAt(readCount)
-            val value                  = parse(toProcess)
+          if (state.enoughStreamChars(readCount)) {
+            val (toProcess, remaining) = state.splitStreamChars(readCount)
+            val result                 = parse(toProcess)
 
-            if (state.stack.nonEmpty && value.isSuccess) {
-              val frame = popStackFrame(state)
+            if (state.stackFramesLeft && result.isSuccess) {
+              val frame = state.popStackFrame()
 
               if (frame != null)
-                state.current = frame(value.get)
+                state.setCurrent(frame(result.get))
               else
-                result = value
+                finalResult = result
 
-              state.stream = remaining
+              state.setStream(remaining)
             }
-            else if (state.stack.isEmpty && value.isSuccess) {
-              state.stream = remaining
-              result       = value
+            else if (!state.stackFramesLeft && result.isSuccess) {
+              state.setStream(remaining)
+              finalResult = result
             }
-            else if (state.stack.nonEmpty && state.orBranches > 0) {
-              state.current = popStackUntilOrBranch(state)
+            else if (state.stackFramesLeft && state.orBranchesLeft) {
+              state.setCurrent(state.popStackUntilOrBranch())
             }
             else {
               // TODO add line number, column information
-              result = toFailedParser(state.errorMsg, value)
+              finalResult = state.failedResultFromErrorMsg(result)
             }
           }
           else {
-            result = ParserState.Failed(NotEnoughCharacters(state.stream.length, readCount))
+            finalResult = ParserState.Failed(NotEnoughCharacters(state.remainingCharsCount, readCount))
           }
 
         case Or(left, right) =>
-          state.current     = left
-          state.orBranches += 1
-
-          state.stack.push((true, _ => right))
-          state.streamPointers.push((state.stream, state.errorMsg))
+          state.addOrBranch(left, right)
 
         case FlatMap(fa, f) =>
-          state.current = fa
-
-          state.stack.push((false, f.asInstanceOf[UnsafeFlatMap]))
+          state.setCurrent(fa)
+          state.addStackFrame(f)
 
         case WithErrorMessage(fa, errorMsg) =>
-          state.current  = fa
-          state.errorMsg = Some(errorMsg)
+          state.setCurrent(fa)
+          state.setErrorMsg(errorMsg)
       }
 
-      state.cycleCount += 1
+      state.incrCycleCount
     }
 
-    (state.cycleCount, state.stream, result)
+    state.produceResult(finalResult)
   }
 
   def run[A](parser: Parser[A], stream: CharStream): ParserState[A] =
