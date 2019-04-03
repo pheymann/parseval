@@ -52,6 +52,14 @@ object ParserSpec extends Specification {
       evalAndCheckSuccess(skipMany(parser), "hha", "a", ())
       evalAndCheckSuccess(skipMany(parser), "a", "a", ())
     }
+
+    "oneOf" >> {
+      val parser = Parser.oneOf(satisfies(_ == 'h'), satisfies(_ == 'n'))
+
+      evalAndCheckSuccess(parser, "h", "", 'h')
+      evalAndCheckSuccess(parser, "n", "", 'n')
+      evalAndCheckFailed(parser, "o", "o", FailedCondition(Vector('o')))
+    }
   }
 
   private def evalAndCheckSuccess[A](parser: Parser[A],

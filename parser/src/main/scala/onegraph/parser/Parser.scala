@@ -116,6 +116,9 @@ object Parser {
   def skipMany[A](parser: Parser[A]): Parser[Unit] =
     many(skip(parser)).map(_ => ())
 
+  def oneOf[A](parsers: Parser[A]*): Parser[A] =
+    parsers.reduceLeft(_.or(_))
+
   // Chars
 
   private val spaceParser = satisfies(_.isSpaceChar).withError("not a space")
