@@ -138,8 +138,11 @@ object Parser {
   def char(c: Char): Parser[Char] =
     satisfies(_ == c).withError(s"not equals to '$c'")
 
-  def oneOf(cs: Set[Char]): Parser[Char] =
-    satisfies(cs.contains).withError(s"not equals to '${cs.mkString("[", ", ", "]")}'")
+  def oneOfChar(chars: Char*): Parser[Char] = {
+    val charSet = chars.toSet
+
+    satisfies(charSet.contains).withError(s"not in ${charSet.mkString("[", ", ", "]")}")
+  }
 
   // Number
 

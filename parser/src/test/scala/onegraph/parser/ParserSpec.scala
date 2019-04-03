@@ -62,6 +62,42 @@ object ParserSpec extends Specification {
     }
   }
 
+  "char" >> {
+    "space" >> {
+      evalAndCheckSuccess(space, " ", "", ())
+      evalAndCheckSuccess(space, "  ", " ", ())
+      evalAndCheckFailed(space, "1", "1", FailedParserWithMsg("not a space", ParserResult.Failed(FailedCondition(Vector('1')))))
+      evalAndCheckSuccess(spaces, "  ", "", ())
+    }
+
+    "whitespace" >> {
+      evalAndCheckSuccess(whitespace, " ", "", ())
+      evalAndCheckSuccess(whitespace, "  ", " ", ())
+      evalAndCheckFailed(whitespace, "1", "1", FailedParserWithMsg("not a whitespace", ParserResult.Failed(FailedCondition(Vector('1')))))
+      evalAndCheckSuccess(whitespaces, "  ", "", ())
+    }
+
+    "letter" >> {
+      evalAndCheckSuccess(letter, "a", "", 'a')
+      evalAndCheckSuccess(letter, "ab", "b", 'a')
+      evalAndCheckFailed(letter, "1", "1", FailedParserWithMsg("not a letter", ParserResult.Failed(FailedCondition(Vector('1')))))
+      evalAndCheckSuccess(letters, "ab", "", Seq('a', 'b'))
+    }
+
+    "digit" >> {
+      evalAndCheckSuccess(digit, "1", "", '1')
+      evalAndCheckSuccess(digit, "12", "2", '1')
+      evalAndCheckFailed(digit, "a", "a", FailedParserWithMsg("not a digit", ParserResult.Failed(FailedCondition(Vector('a')))))
+      evalAndCheckSuccess(digits, "12", "", Seq('1', '2'))
+    }
+
+    "optimized oneOf for Char" >> {
+      evalAndCheckSuccess(oneOfChar('a', 'b'), "a", "", 'a')
+      evalAndCheckSuccess(oneOfChar('a', 'b'), "b", "", 'b')
+      evalAndCheckFailed(oneOfChar('a', 'b'), "c", "c", FailedParserWithMsg("not in [a, b]", ParserResult.Failed(FailedCondition(Vector('c')))))
+    }
+  }
+
   private def evalAndCheckSuccess[A](parser: Parser[A],
                                      input: String,
                                      remaining: String,
