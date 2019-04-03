@@ -200,21 +200,25 @@ object Parser {
     def negate(x: Float): Float = -x
   }
 
-  val positiveFloat =
-    for {
-      nat      <- natural
-      floating <- maybe(char('.').right(natural))
-      _        <- maybe(oneOfChar('f', 'F'))
-    } yield {
-      nat + {
-        floating.fold(0f) { fl =>
-          if (fl == 0)
-            0f
-          else
-            fl / Math.pow(10d, Math.log10(fl.toDouble).toInt.toDouble + 1d).toFloat
-        }
+  private def scientific(base: Int) =
+    oneOfChar('e' , 'E').right(natural).map(exp => base.toDouble * Math.pow(10d, exp.toDouble))
+
+  private def floating(base: Int) =
+    char('.').right(natural).map { fl =>
+      base.toDouble + {
+        if (fl == 0)
+          0d
+        else
+          fl / Math.pow(10d, Math.log10(fl.toDouble).toInt.toDouble + 1d)
       }
     }
+
+  val positiveFloat =
+    for {
+      base <- natural
+      flt  <- maybe(floating(base) | scientific(base))
+      _    <- maybe(oneOfChar('f', 'F'))
+    } yield flt.fold(base.toFloat)(_.toFloat)
 
   val float = negativeNumber(positiveFloat)
 
@@ -230,19 +234,10 @@ object Parser {
 
   val positiveDouble =
     for {
-      nat      <- natural
-      floating <- maybe(char('.').right(natural))
-      _        <- maybe(oneOfChar('d', 'D', 'f', 'F'))  
-    } yield {
-      nat + {
-        floating.fold(0d) { fl =>
-          if (fl == 0)
-            0d
-          else
-            fl / Math.pow(10d, Math.log10(fl.toDouble).toInt.toDouble + 1d)
-        }
-      }
-    }
+      base <- natural
+      dbl  <- maybe(floating(base) | scientific(base))
+      _    <- maybe(oneOfChar('d', 'D', 'f', 'F'))
+    } yield dbl.fold(base.toDouble)(identity)
 
   val double = negativeNumber(positiveDouble)
 
