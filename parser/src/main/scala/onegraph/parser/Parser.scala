@@ -119,6 +119,9 @@ object Parser {
   def oneOf[A](parsers: Parser[A]*): Parser[A] =
     parsers.reduceLeft(_.or(_))
 
+  def maybe[A](parser: Parser[A]): Parser[Option[A]] =
+    parser.map[Option[A]](Some(_)).or(pure(None))
+
   // Chars
 
   private val spaceParser = satisfies(_.isSpaceChar).withError("not a space")
@@ -149,7 +152,7 @@ object Parser {
   def positiveNumber[A: NumberHelper]: Parser[A] = {
     val num = NumberHelper[A]
 
-    many(digit).map(_.foldLeft(num.zero)((nat, d) => num.addWithInt(num.multByTen(nat), d - '0')))
+    atLeastOnce(digit).map(_.toSeq.foldLeft(num.zero)((nat, d) => num.addWithInt(num.multByTen(nat), d - '0')))
   }
 
   def negativeNumber[A: NumberHelper](parser: Parser[A]): Parser[A] =
@@ -179,8 +182,13 @@ object Parser {
     def negate(x: Long): Long = -x
   }
 
-  val positiveLong = positiveNumber[Long]
-  val long         = negativeNumber(positiveLong)
+  val positiveLong =
+    for {
+      l <- positiveNumber[Long]
+      _ <- maybe(oneOfChar('l', 'L'))
+    } yield l
+
+  val long = negativeNumber(positiveLong)
 
   private implicit val floatNumber = new NumberHelper[Float] {
     val zero = 0f
@@ -192,8 +200,23 @@ object Parser {
     def negate(x: Float): Float = -x
   }
 
-  val positiveFloat = positiveNumber[Float]
-  val float         = negativeNumber(positiveFloat)
+  val positiveFloat =
+    for {
+      nat      <- natural
+      floating <- maybe(char('.').right(natural))
+      _        <- maybe(oneOfChar('f', 'F'))
+    } yield {
+      nat + {
+        floating.fold(0f) { fl =>
+          if (fl == 0)
+            0
+          else
+            fl / Math.pow(10d, Math.log10(fl.toDouble).toInt.toDouble + 1d).toFloat
+        }
+      }
+    }
+
+  val float = negativeNumber(positiveFloat)
 
   private implicit val doubleNumber = new NumberHelper[Double] {
     val zero = 0d

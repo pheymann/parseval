@@ -98,6 +98,46 @@ object ParserSpec extends Specification {
     }
   }
 
+  "number" >> {
+    "natural" >> {
+      evalAndCheckSuccess(natural, "1", "", 1)
+      evalAndCheckSuccess(natural, "11", "", 11)
+      evalAndCheckSuccess(natural, "1a", "a", 1)
+      evalAndCheckFailed(natural, "-1", "-1", FailedParserWithMsg("not a digit", ParserResult.Failed(FailedCondition(Vector('-')))))
+    }
+
+    "integer" >> {
+      evalAndCheckSuccess(int, "1", "", 1)
+      evalAndCheckSuccess(int, "11", "", 11)
+      evalAndCheckSuccess(int, "-1", "", -1)
+      evalAndCheckSuccess(int, "1.0", ".0", 1)
+    }
+
+    "long" >> {
+      evalAndCheckSuccess(long, "1", "", 1l)
+      evalAndCheckSuccess(long, "1l", "", 1l)
+      evalAndCheckSuccess(long, "1L", "", 1l)
+      evalAndCheckSuccess(long, "11l", "", 11l)
+      evalAndCheckSuccess(long, "-1", "", -1l)
+      evalAndCheckSuccess(long, "1.0", ".0", 1l)
+    }
+
+    "float" >> {
+      evalAndCheckSuccess(float, "1", "", 1f)
+      evalAndCheckSuccess(float, "1f", "", 1f)
+      evalAndCheckSuccess(float, "1F", "", 1f)
+      evalAndCheckSuccess(float, "1.0", "", 1f)
+      evalAndCheckSuccess(float, "1.0f", "", 1f)
+      evalAndCheckSuccess(float, "-1.0f", "", -1f)
+
+      val (remaining, result) = float.eval("1.111f".toVector)
+
+      remaining                 mustEqual "".toVector
+      result.isSuccess          must beTrue
+      (result.get - 1.111f).abs must lessThanOrEqualTo(0.0001f)
+    }
+  }
+
   private def evalAndCheckSuccess[A](parser: Parser[A],
                                      input: String,
                                      remaining: String,
