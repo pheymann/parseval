@@ -27,7 +27,7 @@ object ParserRuntime {
     private var orBranches = 0
     private var cycleCount = 0
 
-    private def popStack(): StackFrame =
+    private[internal] def popStack(): StackFrame =
       if (stack.nonEmpty)
         stack.pop()
       else
@@ -35,7 +35,7 @@ object ParserRuntime {
 
     def stackFramesLeft: Boolean = stack.nonEmpty
 
-    def addStackFrame(f: Nothing => Parser[Any]): Unit =
+    def pushStackFrame(f: Nothing => Parser[Any]): Unit =
       stack.push((false, f.asInstanceOf[UnsafeFlatMap]))
 
     def popStackFrame(): UnsafeFlatMap = {
@@ -56,7 +56,7 @@ object ParserRuntime {
 
     def orBranchesLeft: Boolean = orBranches > 0
 
-    def addOrBranch(left: Parser[Any], right: Parser[Any]): Unit = {
+    def pushOrBranch(left: Parser[Any], right: Parser[Any]): Unit = {
       setCurrent(left)
 
       orBranches += 1
@@ -166,11 +166,11 @@ object ParserRuntime {
           }
 
         case Or(left, right) =>
-          state.addOrBranch(left, right)
+          state.pushOrBranch(left, right)
 
         case FlatMap(fa, f) =>
           state.setCurrent(fa)
-          state.addStackFrame(f)
+          state.pushStackFrame(f)
 
         case WithErrorMessage(fa, errorMsg) =>
           state.setCurrent(fa)

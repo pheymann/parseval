@@ -1,7 +1,7 @@
 package onegraph.parser.internal
 
 import onegraph.parser.Parser
-import onegraph.parser.internal.ParserRuntime.FailedParserInternal
+import onegraph.parser.internal.ParserRuntime.{FailedParserInternal, RuntimeState}
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 
@@ -10,6 +10,68 @@ object ParserRuntimeSpec extends Specification {
   import Parser._
 
   sequential
+
+  "RuntimeState" >> {
+    val parser1 = char('h').asInstanceOf[Parser[Any]]
+    val parser2 = char('n').asInstanceOf[Parser[Any]]
+    val frame1  = (_: Any) => parser1
+    val frame2  = (_: Any) => parser2
+
+    "push/pop stack frames" >> {
+      val state = new RuntimeState(null, null)
+
+      state.pushStackFrame(frame1)
+      state.pushStackFrame(frame2)
+
+      state.stackFramesLeft must beTrue
+      state.popStack() mustEqual (false, frame2)
+      state.stackFramesLeft must beTrue
+      state.popStack() mustEqual (false, frame1)
+      state.stackFramesLeft must beFalse
+    }
+
+    "push/pop OR branches" >> {
+      val state = new RuntimeState(null, null)
+
+      state.orBranchesLeft must beFalse
+      state.pushOrBranch(parser1, parser2)
+      state.orBranchesLeft must beTrue
+      state.getCurrent mustEqual parser1
+
+      state.popStackUntilOrBranch() mustEqual parser2
+      state.orBranchesLeft must beFalse
+
+      val errorMsg1 = () => "hi"
+      val errorMsg2 = () => "ho"
+
+      state.setErrorMsg(errorMsg1)
+      state.pushOrBranch(parser1, parser2)
+      state.pushStackFrame(frame1)
+      state.setErrorMsg(errorMsg2)
+      state.getErrorMsg mustEqual Some(errorMsg2)
+
+      state.popStackUntilOrBranch() mustEqual parser2
+      state.getErrorMsg mustEqual Some(errorMsg1)
+
+      state.pushOrBranch(parser1, parser2)
+      state.pushStackFrame(frame1)
+      state.pushOrBranch(parser2, parser1)
+      state.pushStackFrame(frame2)
+
+      state.popStackUntilOrBranch() mustEqual parser1
+      state.popStackUntilOrBranch() mustEqual parser2
+      state.popStackUntilOrBranch() must throwA(new NullPointerException(null))
+
+      state.pushStackFrame(frame1)
+      state.pushOrBranch(parser1, parser2)
+      state.pushStackFrame(frame2)
+
+      state.popStackFrame() mustEqual frame2
+      state.orBranchesLeft must beTrue
+      state.popStackFrame() mustEqual frame1
+      state.orBranchesLeft must beFalse
+    }
+  }
 
   "successfully process Parser tree" >> {
     "pure" >> {
