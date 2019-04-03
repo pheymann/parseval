@@ -1,14 +1,13 @@
 package onegraph.parser
 
-import onegraph.parser.Parser.WithErrorMessage
-import onegraph.parser.internal.ParserState
-import onegraph.parser.internal.ParserState.ParserError
+import onegraph.parser.Parser.{CharStreamNotEmpty, WithErrorMessage}
+import onegraph.parser.internal.{ParserResult, ParserRuntime}
 import onegraph.parser.util.{NonEmptySeq, NumberHelper}
 
 sealed trait Parser[A] {
 
   def map[B](f: A => B): Parser[B] =
-    Parser.FlatMap[A, B](this, a => Parser.Pure(ParserState.Success(f(a))))
+    Parser.FlatMap[A, B](this, a => Parser.Pure(ParserResult.Success(f(a))))
 
   def flatMap[B](f: A => Parser[B]): Parser[B] =
     Parser.FlatMap(this, f)
@@ -36,15 +35,30 @@ sealed trait Parser[A] {
   def |(fa: Parser[A]): Parser[A] = or(fa)
 
   def withError(msg: => String): Parser[A] = WithErrorMessage(this, () => msg)
+
+  def apply(stream: CharStream): (CharStream, ParserResult[A]) =
+    eval(stream)
+
+  def eval(stream: CharStream): (CharStream, ParserResult[A]) =
+    ParserRuntime.run(this, stream)
+
+  def evalConsumeStream(stream: CharStream): ParserResult[A] = {
+    val (remaining, result) = ParserRuntime.run(this, stream)
+
+    if (remaining.isEmpty)
+      result
+    else
+      ParserResult.Failed(CharStreamNotEmpty(remaining, result))
+  }
 }
 
 object Parser {
 
-  final case class FailedParser(msg: String, cause: ParserError) extends ParserState.ParserError
+  final case class CharStreamNotEmpty[A](remaining: CharStream, result: ParserResult[A]) extends ParserError
 
-  final case class Pure[A](a: ParserState[A]) extends Parser[A]
+  final case class Pure[A](a: ParserResult[A]) extends Parser[A]
 
-  final case class Rule[A](arraySize: Int, parse: CharStream => ParserState[A]) extends Parser[A]
+  final case class Rule[A](arraySize: Int, parse: CharStream => ParserResult[A]) extends Parser[A]
 
   final case class Or[A](left: Parser[A], right: Parser[A]) extends Parser[A]
 
@@ -52,29 +66,29 @@ object Parser {
 
   final case class WithErrorMessage[A](fa: Parser[A], msg: () => String) extends Parser[A]
 
-  def pure[A](a: A): Parser[A] = Pure(ParserState.Success(a))
+  def pure[A](a: A): Parser[A] = Pure(ParserResult.Success(a))
 
-  def failed[A](error: ParserState.ParserError): Parser[A] = Pure(ParserState.Failed(error))
+  def failed[A](error: ParserError): Parser[A] = Pure(ParserResult.Failed(error))
 
   // Primitives
 
-  final case class FailedCondition(input: CharStream) extends ParserState.ParserError
+  final case class FailedCondition(input: CharStream) extends ParserError
 
   def satisfies(cond: Char => Boolean): Parser[Char] = {
     Rule(1, c => {
       if (cond(c.head))
-        ParserState.Success(c.head)
+        ParserResult.Success(c.head)
       else
-        ParserState.Failed(FailedCondition(c))
+        ParserResult.Failed(FailedCondition(c))
     })
   }
 
   def satisfies(arraySize: Int, cond: CharStream => Boolean): Parser[CharStream] = {
     Rule(arraySize, c => {
       if (cond(c))
-        ParserState.Success(c)
+        ParserResult.Success(c)
       else
-        ParserState.Failed(FailedCondition(c))
+        ParserResult.Failed(FailedCondition(c))
     })
   }
 
@@ -100,7 +114,7 @@ object Parser {
     parser.map(_ => ())
 
   def skipMany[A](parser: Parser[A]): Parser[Unit] =
-    parser.map(_ => ())
+    many(skip(parser)).map(_ => ())
 
   // Chars
 

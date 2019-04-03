@@ -1,7 +1,7 @@
 package onegraph.parser.internal
 
-import onegraph.parser.Parser
-import onegraph.parser.internal.ParserRuntime.{FailedParserInternal, RuntimeState}
+import onegraph.parser.{FailedParserWithMsg, NotEnoughCharacters, Parser, ParserError}
+import onegraph.parser.internal.ParserRuntime.RuntimeState
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
 
@@ -114,14 +114,14 @@ object ParserRuntimeSpec extends Specification {
 
     "rule" >> {
       "single" >> {
-        checkFailure(char('h'), "c", 2, "c", FailedParserInternal("not equals to 'h'", ParserState.Failed(FailedCondition(Vector('c')))))
-        checkFailure(char('h'), "ci", 2, "ci", FailedParserInternal("not equals to 'h'", ParserState.Failed(FailedCondition(Vector('c')))))
+        checkFailure(char('h'), "c", 2, "c", FailedParserWithMsg("not equals to 'h'", ParserResult.Failed(FailedCondition(Vector('c')))))
+        checkFailure(char('h'), "ci", 2, "ci", FailedParserWithMsg("not equals to 'h'", ParserResult.Failed(FailedCondition(Vector('c')))))
         checkFailure(char('h'), "", 2, "", NotEnoughCharacters(0, 1))
       }
 
       "with stack" >> {
-        checkFailure(char('h').right(char('i')).map(_ => 0), "ho", 6, "o", FailedParserInternal("not equals to 'i'", ParserState.Failed(FailedCondition(Vector('o')))))
-        checkFailure(char('h').right(char('i')).map(_ => 0), "hola", 6, "ola", FailedParserInternal("not equals to 'i'", ParserState.Failed(FailedCondition(Vector('o')))))
+        checkFailure(char('h').right(char('i')).map(_ => 0), "ho", 6, "o", FailedParserWithMsg("not equals to 'i'", ParserResult.Failed(FailedCondition(Vector('o')))))
+        checkFailure(char('h').right(char('i')).map(_ => 0), "hola", 6, "ola", FailedParserWithMsg("not equals to 'i'", ParserResult.Failed(FailedCondition(Vector('o')))))
       }
     }
   }
@@ -152,6 +152,7 @@ object ParserRuntimeSpec extends Specification {
         checkSuccess(char('h').left(char('i')).or(char('w')), "hi", 8, "", 'h')
         checkSuccess(char('h').left(char('i')).or(char('w')), "hi!", 8, "!", 'h')
         checkSuccess(char('h').left(failed(TestError)).or(char('h')), "hi", 8, "i", 'h')
+        checkSuccess(char('h').flatMap(_ => char('i')).or(char('h')), "h", 8, "", 'h')
       }
     }
 
@@ -178,10 +179,10 @@ object ParserRuntimeSpec extends Specification {
     checkSuccess(parser, "hello", 18, "", "world")
     checkSuccess(parser, "hallo", 20, "", "world")
     checkSuccess(parser, "holallo", 28, "", "world")
-    checkFailure(parser, "hiho", 14, "iho", FailedParserInternal("not equals to 'o'", ParserState.Failed(FailedCondition(Vector('i')))))
+    checkFailure(parser, "hiho", 14, "iho", FailedParserWithMsg("not equals to 'o'", ParserResult.Failed(FailedCondition(Vector('i')))))
   }
 
-  case object TestError extends ParserState.ParserError
+  case object TestError extends ParserError
 
   private def checkSuccess[A](parser: Parser[A],
                               input: String,
@@ -192,18 +193,18 @@ object ParserRuntimeSpec extends Specification {
 
     cycles    mustEqual expectedCycles
     remaining mustEqual expectedRemainingInput.toVector
-    state     mustEqual ParserState.Success(expectedResult)
+    state     mustEqual ParserResult.Success(expectedResult)
   }
 
   private def checkFailure[A](parser: Parser[A],
                               input: String,
                               expectedCycles: Int,
                               expectedRemainingInput: String,
-                              expectedError: ParserState.ParserError): MatchResult[Any] = {
+                              expectedError: ParserError): MatchResult[Any] = {
     val (cycles, remaining, state) = ParserRuntime.runUnsafe(parser.asInstanceOf[Parser[Any]], input.toVector)
 
     cycles    mustEqual expectedCycles
     remaining mustEqual expectedRemainingInput.toVector
-    state     mustEqual ParserState.Failed(expectedError)
+    state     mustEqual ParserResult.Failed(expectedError)
   }
 }

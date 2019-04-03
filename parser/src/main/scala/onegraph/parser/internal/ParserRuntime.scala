@@ -1,6 +1,6 @@
 package onegraph.parser.internal
 
-import onegraph.parser.{CharStream, Parser}
+import onegraph.parser._
 
 import scala.collection.mutable
 import scala.util.control.NonFatal
@@ -14,7 +14,7 @@ object ParserRuntime {
   private type ErrorMsg      = Option[() => String]
   private type StackFrame    = (IsBranch, UnsafeFlatMap)
 
-  final case class FailedParserInternal(msg: String, cause: ParserState[Any]) extends ParserState.ParserError
+  final case class InternalParserError(cause: Throwable) extends ParserError
 
   private[internal] final class RuntimeState(private var current: Parser[Any],
                                              private var stream: CharStream) {
@@ -87,12 +87,12 @@ object ParserRuntime {
 
     def splitStreamChars(readCount: Int): (CharStream, CharStream) = stream.splitAt(readCount)
 
-    def failedResultFromErrorMsg(cause: ParserState[Any]): ParserState[Any] =
-      errorMsg.fold(cause)(msg => ParserState.Failed(FailedParserInternal(msg(), cause)))
+    def failedResultFromErrorMsg(cause: ParserResult[Any]): ParserResult[Any] =
+      errorMsg.fold(cause)(msg => ParserResult.Failed(FailedParserWithMsg(msg(), cause)))
 
     def incrCycleCount = cycleCount += 1
 
-    def produceResult(result: ParserState[Any]): (Int, CharStream, ParserState[Any]) =
+    def produceResult(result: ParserResult[Any]): (Int, CharStream, ParserResult[Any]) =
       (cycleCount, stream, result)
 
     def getCurrent: Parser[Any] = current
@@ -106,10 +106,10 @@ object ParserRuntime {
     def setStream(remaining: CharStream): Unit = stream = remaining
   }
 
-  private[internal] def runUnsafe(parser: Parser[Any], inputStream: CharStream): (Int, CharStream, ParserState[Any]) = {
+  private[internal] def runUnsafe(parser: Parser[Any], inputStream: CharStream): (Int, CharStream, ParserResult[Any]) = {
     val state = new RuntimeState(parser, inputStream)
 
-    var finalResult: ParserState[Any] = null
+    var finalResult: ParserResult[Any] = null
 
     while (finalResult == null || (!finalResult.isSuccess && state.orBranchesLeft)) {
       state.getCurrent match {
@@ -161,8 +161,11 @@ object ParserRuntime {
               finalResult = state.failedResultFromErrorMsg(result)
             }
           }
+          else if (state.stackFramesLeft && state.orBranchesLeft) {
+            state.setCurrent(state.popStackUntilOrBranch())
+          }
           else {
-            finalResult = ParserState.Failed(NotEnoughCharacters(state.remainingCharsCount, readCount))
+            finalResult = ParserResult.Failed(NotEnoughCharacters(state.remainingCharsCount, readCount))
           }
 
         case Or(left, right) =>
@@ -183,16 +186,12 @@ object ParserRuntime {
     state.produceResult(finalResult)
   }
 
-  def run[A](parser: Parser[A], stream: CharStream): ParserState[A] =
+  def run[A](parser: Parser[A], stream: CharStream): (CharStream, ParserResult[A]) =
     try {
-      runUnsafe(parser.asInstanceOf[Parser[Any]], stream)._3.asInstanceOf[ParserState[A]]
+      val (_, remaining, result) = runUnsafe(parser.asInstanceOf[Parser[Any]], stream)
+
+      (remaining, result.asInstanceOf[ParserResult[A]])
     } catch {
-      case NonFatal(cause) => ParserState.Failed(InternalParserError(cause))
+      case NonFatal(cause) => (stream, ParserResult.Failed(InternalParserError(cause)))
     }
 }
-
-sealed trait ParseRuntimeError extends ParserState.ParserError
-
-final case class NotEnoughCharacters(actual: Int, expected: Int) extends ParseRuntimeError
-
-final case class InternalParserError(cause: Throwable) extends ParseRuntimeError
