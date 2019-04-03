@@ -136,6 +136,21 @@ object ParserSpec extends Specification {
       result.isSuccess          must beTrue
       (result.get - 1.111f).abs must lessThanOrEqualTo(0.0001f)
     }
+
+    "double" >> {
+      evalAndCheckSuccess(double, "1", "", 1d)
+      evalAndCheckSuccess(double, "1d", "", 1d)
+      evalAndCheckSuccess(double, "1F", "", 1d)
+      evalAndCheckSuccess(double, "1.0", "", 1d)
+      evalAndCheckSuccess(double, "1.0d", "", 1d)
+      evalAndCheckSuccess(double, "-1.0d", "", -1d)
+
+      val (remaining, result) = double.eval("1.111d".toVector)
+
+      remaining                 mustEqual "".toVector
+      result.isSuccess          must beTrue
+      (result.get - 1.111d).abs must lessThanOrEqualTo(0.0001d)
+    }
   }
 
   private def evalAndCheckSuccess[A](parser: Parser[A],

@@ -209,7 +209,7 @@ object Parser {
       nat + {
         floating.fold(0f) { fl =>
           if (fl == 0)
-            0
+            0f
           else
             fl / Math.pow(10d, Math.log10(fl.toDouble).toInt.toDouble + 1d).toFloat
         }
@@ -228,8 +228,23 @@ object Parser {
     def negate(x: Double): Double = -x
   }
 
-  val positiveDouble = positiveNumber[Double]
-  val double         = negativeNumber(positiveDouble)
+  val positiveDouble =
+    for {
+      nat      <- natural
+      floating <- maybe(char('.').right(natural))
+      _        <- maybe(oneOfChar('d', 'D', 'f', 'F'))  
+    } yield {
+      nat + {
+        floating.fold(0d) { fl =>
+          if (fl == 0)
+            0d
+          else
+            fl / Math.pow(10d, Math.log10(fl.toDouble).toInt.toDouble + 1d)
+        }
+      }
+    }
+
+  val double = negativeNumber(positiveDouble)
 
   // Token
 
