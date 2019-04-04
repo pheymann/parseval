@@ -30,7 +30,7 @@ val common = Seq(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(parser)
+  .aggregate(parser, json)
 
 lazy val parser = project
   .in(file("parser"))
@@ -40,3 +40,10 @@ lazy val parser = project
       "org.specs2" %% "specs2-core" % "4.5.1" % "test"
     )
   )
+
+lazy val json = project
+  .in(file("json"))
+  .settings(
+    common
+  )
+  .dependsOn(parser)
