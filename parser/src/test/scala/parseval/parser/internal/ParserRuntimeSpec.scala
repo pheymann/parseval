@@ -34,7 +34,7 @@ object ParserRuntimeSpec extends Specification {
       val state = new RuntimeState(null, null)
 
       state.orBranchesLeft must beFalse
-      state.pushOrBranch(parser1, parser2)
+      state.pushOrBranch(parser1, parser2, None)
       state.orBranchesLeft must beTrue
       state.getCurrent mustEqual parser1
 
@@ -44,18 +44,18 @@ object ParserRuntimeSpec extends Specification {
       val errorMsg1 = () => "hi"
       val errorMsg2 = () => "ho"
 
-      state.setErrorMsg(errorMsg1)
-      state.pushOrBranch(parser1, parser2)
+      state.pushOrBranch(parser1, parser2, Some(errorMsg1))
       state.pushStackFrame(frame1)
-      state.setErrorMsg(errorMsg2)
-      state.getErrorMsg mustEqual Some(errorMsg2)
+      state.pushErrorMsg(Some(errorMsg2))
+      state.pushErrorMsg(None)
+      state.getErrorMsgStack mustEqual Vector(errorMsg2, errorMsg1)
 
       state.popStackUntilOrBranch() mustEqual parser2
-      state.getErrorMsg mustEqual Some(errorMsg1)
+      state.getErrorMsgStack mustEqual Vector(errorMsg1)
 
-      state.pushOrBranch(parser1, parser2)
+      state.pushOrBranch(parser1, parser2, None)
       state.pushStackFrame(frame1)
-      state.pushOrBranch(parser2, parser1)
+      state.pushOrBranch(parser2, parser1, None)
       state.pushStackFrame(frame2)
 
       state.popStackUntilOrBranch() mustEqual parser1
@@ -63,7 +63,7 @@ object ParserRuntimeSpec extends Specification {
       state.popStackUntilOrBranch() must throwA(new NullPointerException(null))
 
       state.pushStackFrame(frame1)
-      state.pushOrBranch(parser1, parser2)
+      state.pushOrBranch(parser1, parser2, None)
       state.pushStackFrame(frame2)
 
       state.popStackFrame() mustEqual frame2
@@ -88,13 +88,13 @@ object ParserRuntimeSpec extends Specification {
 
     "rule" >> {
       "single" >> {
-        checkSuccess(char('h'), "h", 2, "", 'h')
-        checkSuccess(char('h'), "hi", 2, "i", 'h')
+        checkSuccess(char('h'), "h", 1, "", 'h')
+        checkSuccess(char('h'), "hi", 1, "i", 'h')
       }
 
       "with stack" >> {
-        checkSuccess(char('h').right(char('i')).map(_ => 0), "hi", 7, "", 0)
-        checkSuccess(char('h').right(char('i')).map(_ => 0), "hi!", 7, "!", 0)
+        checkSuccess(char('h').right(char('i')).map(_ => 0), "hi", 5, "", 0)
+        checkSuccess(char('h').right(char('i')).map(_ => 0), "hi!", 5, "!", 0)
       }
     }
   }
@@ -114,14 +114,14 @@ object ParserRuntimeSpec extends Specification {
 
     "rule" >> {
       "single" >> {
-        checkFailure(char('h'), "c", 2, "c", FailedParserWithMsg("not equals to 'h'", FailedCondition(Vector('c'))))
-        checkFailure(char('h'), "ci", 2, "ci", FailedParserWithMsg("not equals to 'h'", FailedCondition(Vector('c'))))
-        checkFailure(char('h'), "", 2, "", NotEnoughCharacters(0, 1))
+        checkFailure(char('h'), "c", 1, "c", FailedParserWithStack(FailedCondition(Vector('c')), Vector("not equals to 'h'")))
+        checkFailure(char('h'), "ci", 1, "ci", FailedParserWithStack(FailedCondition(Vector('c')), Vector("not equals to 'h'")))
+        checkFailure(char('h'), "", 1, "", NotEnoughCharacters(0, 1))
       }
 
       "with stack" >> {
-        checkFailure(char('h').right(char('i')).map(_ => 0), "ho", 6, "o", FailedParserWithMsg("not equals to 'i'", FailedCondition(Vector('o'))))
-        checkFailure(char('h').right(char('i')).map(_ => 0), "hola", 6, "ola", FailedParserWithMsg("not equals to 'i'", FailedCondition(Vector('o'))))
+        checkFailure(char('h').right(char('i')).map(_ => 0), "ho", 4, "o", FailedParserWithStack(FailedCondition(Vector('o')), Vector("not equals to 'i'")))
+        checkFailure(char('h').right(char('i')).map(_ => 0), "hola", 4, "ola", FailedParserWithStack(FailedCondition(Vector('o')), Vector("not equals to 'i'")))
       }
     }
   }
@@ -143,26 +143,26 @@ object ParserRuntimeSpec extends Specification {
 
     "rule" >> {
       "single" >> {
-        checkSuccess(char('h').or(char('w')), "h", 3, "", 'h')
-        checkSuccess(char('h').or(char('w')), "hi", 3, "i", 'h')
-        checkSuccess(failed(TestError).or(char('h')), "hi", 4, "i", 'h')
+        checkSuccess(char('h').or(char('w')), "h", 2, "", 'h')
+        checkSuccess(char('h').or(char('w')), "hi", 2, "i", 'h')
+        checkSuccess(failed(TestError).or(char('h')), "hi", 3, "i", 'h')
       }
 
       "with stack" >> {
-        checkSuccess(char('h').left(char('i')).or(char('w')), "hi", 8, "", 'h')
-        checkSuccess(char('h').left(char('i')).or(char('w')), "hi!", 8, "!", 'h')
-        checkSuccess(char('h').left(failed(TestError)).or(char('h')), "hi", 8, "i", 'h')
-        checkSuccess(char('h').flatMap(_ => char('i')).or(char('h')), "h", 8, "", 'h')
+        checkSuccess(char('h').left(char('i')).or(char('w')), "hi", 6, "", 'h')
+        checkSuccess(char('h').left(char('i')).or(char('w')), "hi!", 6, "!", 'h')
+        checkSuccess(char('h').left(failed(TestError)).or(char('h')), "hi", 6, "i", 'h')
+        checkSuccess(char('h').flatMap(_ => char('i')).or(char('h')), "h", 5, "", 'h')
       }
     }
 
     "multiple" >> {
-      checkSuccess(char('h').or(char('w')).or(char('n')), "h", 4, "", 'h')
-      checkSuccess(char('h').or(char('w')).or(char('n')), "w", 6, "", 'w')
-      checkSuccess(char('h').or(char('w')).or(char('n')), "n", 8, "", 'n')
+      checkSuccess(char('h').or(char('w')).or(char('n')), "h", 3, "", 'h')
+      checkSuccess(char('h').or(char('w')).or(char('n')), "w", 4, "", 'w')
+      checkSuccess(char('h').or(char('w')).or(char('n')), "n", 5, "", 'n')
 
-      checkSuccess(char('h').right(char('i')).or(char('w')).or(char('n')), "hi", 7, "", 'i')
-      checkSuccess(char('h').right(char('i').or(char('w'))).or(char('n')), "hi", 7, "", 'i')
+      checkSuccess(char('h').right(char('i')).or(char('w')).or(char('n')), "hi", 5, "", 'i')
+      checkSuccess(char('h').right(char('i').or(char('w'))).or(char('n')), "hi", 5, "", 'i')
     }
   }
 
@@ -176,10 +176,10 @@ object ParserRuntimeSpec extends Specification {
         _ <- char('o')
       } yield "world"
 
-    checkSuccess(parser, "hello", 18, "", "world")
-    checkSuccess(parser, "hallo", 20, "", "world")
-    checkSuccess(parser, "holallo", 28, "", "world")
-    checkFailure(parser, "hiho", 14, "iho", FailedParserWithMsg("not equals to 'o'", FailedCondition(Vector('i'))))
+    checkSuccess(parser, "hello", 13, "", "world")
+    checkSuccess(parser, "hallo", 14, "", "world")
+    checkSuccess(parser, "holallo", 19, "", "world")
+    checkFailure(parser, "hiho", 10, "iho", FailedParserWithStack(FailedCondition(Vector('i')), Vector("not equals to 'o'")))
   }
 
   case object TestError extends ParserError

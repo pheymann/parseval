@@ -65,41 +65,41 @@ object ParserSpec extends Specification {
     "space" >> {
       evalAndCheckSuccess(space, " ", "", ())
       evalAndCheckSuccess(space, "  ", " ", ())
-      evalAndCheckFailed(space, "1", "1", FailedParserWithMsg("not a space", FailedCondition(Vector('1'))))
+      evalAndCheckFailed(space, "1", "1", FailedParserWithStack(FailedCondition(Vector('1')), Vector("not a space")))
       evalAndCheckSuccess(spaces, "  ", "", ())
     }
 
     "whitespace" >> {
       evalAndCheckSuccess(whitespace, " ", "", ())
       evalAndCheckSuccess(whitespace, "  ", " ", ())
-      evalAndCheckFailed(whitespace, "1", "1", FailedParserWithMsg("not a whitespace", FailedCondition(Vector('1'))))
+      evalAndCheckFailed(whitespace, "1", "1", FailedParserWithStack(FailedCondition(Vector('1')), Vector("not a whitespace")))
       evalAndCheckSuccess(whitespaces, "  ", "", ())
     }
 
     "letter" >> {
       evalAndCheckSuccess(letter, "a", "", 'a')
       evalAndCheckSuccess(letter, "ab", "b", 'a')
-      evalAndCheckFailed(letter, "1", "1", FailedParserWithMsg("not a letter", FailedCondition(Vector('1'))))
+      evalAndCheckFailed(letter, "1", "1", FailedParserWithStack(FailedCondition(Vector('1')), Vector("not a letter")))
       evalAndCheckSuccess(letters, "ab", "", Seq('a', 'b'))
     }
 
     "digit" >> {
       evalAndCheckSuccess(digit, "1", "", '1')
       evalAndCheckSuccess(digit, "12", "2", '1')
-      evalAndCheckFailed(digit, "a", "a", FailedParserWithMsg("not a digit", FailedCondition(Vector('a'))))
+      evalAndCheckFailed(digit, "a", "a", FailedParserWithStack( FailedCondition(Vector('a')), Vector("not a digit")))
       evalAndCheckSuccess(digits, "12", "", Seq('1', '2'))
     }
 
     "optimized oneOf for Char" >> {
       evalAndCheckSuccess(oneOfChar('a', 'b'), "a", "", 'a')
       evalAndCheckSuccess(oneOfChar('a', 'b'), "b", "", 'b')
-      evalAndCheckFailed(oneOfChar('a', 'b'), "c", "c", FailedParserWithMsg("not in [a, b]", FailedCondition(Vector('c'))))
+      evalAndCheckFailed(oneOfChar('a', 'b'), "c", "c", FailedParserWithStack(FailedCondition(Vector('c')), Vector("not in [a, b]")))
     }
 
     "literal" >> {
       evalAndCheckSuccess(literal("hello"), "hello", "", "hello")
       evalAndCheckSuccess(literal("hello"), "hello, you", ", you", "hello")
-      evalAndCheckFailed(literal("hello"), "yello", "yello", FailedParserWithMsg("not equal to \"hello\"", FailedCondition("yello".toVector)))
+      evalAndCheckFailed(literal("hello"), "yello", "yello", FailedParserWithStack(FailedCondition("yello".toVector), Vector("not equal to \"hello\"")))
     }
   }
 
@@ -108,7 +108,7 @@ object ParserSpec extends Specification {
       evalAndCheckSuccess(natural, "1", "", 1)
       evalAndCheckSuccess(natural, "11", "", 11)
       evalAndCheckSuccess(natural, "1a", "a", 1)
-      evalAndCheckFailed(natural, "-1", "-1", FailedParserWithMsg("not a digit", FailedCondition(Vector('-'))))
+      evalAndCheckFailed(natural, "-1", "-1", FailedParserWithStack(FailedCondition(Vector('-')), Vector("not a digit")))
     }
 
     "integer" >> {

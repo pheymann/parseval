@@ -11,7 +11,7 @@ object ParserRuntime {
 
   private type UnsafeFlatMap = Any => Parser[Any]
   private type IsBranch      = Boolean
-  private type ErrorMsg      = Option[() => String]
+  private type LazyErrorMsg  = () => ErrorMsg
   private type StackFrame    = (IsBranch, UnsafeFlatMap)
 
   final case class InternalParserError(cause: Throwable) extends ParserError
@@ -20,9 +20,9 @@ object ParserRuntime {
                                              private var stream: CharStream) {
 
     private val stack          = mutable.ArrayStack[StackFrame]()
-    private val streamPointers = mutable.ArrayStack[(CharStream, ErrorMsg)]()
+    private val streamPointers = mutable.ArrayStack[(CharStream, Vector[LazyErrorMsg])]()
 
-    private var errorMsg = Option.empty[() => String]
+    private var errorMsgStack = Vector.empty[LazyErrorMsg]
 
     private var orBranches = 0
     private var cycleCount = 0
@@ -56,13 +56,14 @@ object ParserRuntime {
 
     def orBranchesLeft: Boolean = orBranches > 0
 
-    def pushOrBranch(left: Parser[Any], right: Parser[Any]): Unit = {
+    def pushOrBranch(left: Parser[Any], right: Parser[Any], errorMsg: Option[LazyErrorMsg]): Unit = {
       setCurrent(left)
+      pushErrorMsg(errorMsg)
 
       orBranches += 1
 
       stack.push((true, _ => right))
-      streamPointers.push((stream, errorMsg))
+      streamPointers.push((stream, errorMsgStack))
     }
 
     def popStackUntilOrBranch(): Parser[Any] = {
@@ -74,12 +75,15 @@ object ParserRuntime {
 
       val (resetStream, resetErrorMsg) = streamPointers.pop()
 
-      stream      = resetStream
-      errorMsg    = resetErrorMsg
-      orBranches -= 1
+      stream         = resetStream
+      errorMsgStack  = resetErrorMsg
+      orBranches    -= 1
 
       orBranch._2(())
     }
+
+    def pushErrorMsg(msg: Option[LazyErrorMsg]): Unit =
+      msg.foreach(m => errorMsgStack = m +: errorMsgStack)
 
     def enoughStreamChars(readCount: Int): Boolean = stream.length >= readCount
 
@@ -88,7 +92,10 @@ object ParserRuntime {
     def splitStreamChars(readCount: Int): (CharStream, CharStream) = stream.splitAt(readCount)
 
     def failedResultFromErrorMsg(cause: ParserResult.Failed): ParserResult[Any] =
-      errorMsg.fold(cause)(msg => ParserResult.Failed(FailedParserWithMsg(msg(), cause.error)))
+      if (errorMsgStack.isEmpty)
+        cause
+      else
+        ParserResult.Failed(FailedParserWithStack(cause.error, errorMsgStack.map(_())))
 
     def incrCycleCount = cycleCount += 1
 
@@ -99,9 +106,7 @@ object ParserRuntime {
 
     def setCurrent(next: Parser[Any]): Unit = current = next
 
-    def getErrorMsg: ErrorMsg = errorMsg
-
-    def setErrorMsg(msg: () => String): Unit = errorMsg = Some(msg)
+    def getErrorMsgStack: Vector[LazyErrorMsg] = errorMsgStack
 
     def setStream(remaining: CharStream): Unit = stream = remaining
   }
@@ -134,7 +139,7 @@ object ParserRuntime {
             finalResult = state.failedResultFromErrorMsg(value.asInstanceOf[ParserResult.Failed])
           }
 
-        case Rule(readCount, parse) =>
+        case Rule(readCount, parse, errorMsg) =>
           if (state.enoughStreamChars(readCount)) {
             val (toProcess, remaining) = state.splitStreamChars(readCount)
             val result                 = parse(toProcess)
@@ -153,11 +158,13 @@ object ParserRuntime {
               state.setStream(remaining)
               finalResult = result
             }
-            else if (state.stackFramesLeft && state.orBranchesLeft) {
+            else if (state.orBranchesLeft && !result.isSuccess) {
               state.setCurrent(state.popStackUntilOrBranch())
             }
             else {
               // TODO add line number, column information
+              state.pushErrorMsg(errorMsg)
+
               finalResult = state.failedResultFromErrorMsg(result.asInstanceOf[ParserResult.Failed])
             }
           }
@@ -165,19 +172,18 @@ object ParserRuntime {
             state.setCurrent(state.popStackUntilOrBranch())
           }
           else {
+            state.pushErrorMsg(errorMsg)
+
             finalResult = ParserResult.Failed(NotEnoughCharacters(state.remainingCharsCount, readCount))
           }
 
-        case Or(left, right) =>
-          state.pushOrBranch(left, right)
+        case Or(left, right, errorMsg) =>
+          state.pushOrBranch(left, right, errorMsg)
 
-        case FlatMap(fa, f) =>
+        case FlatMap(fa, f, errorMsg) =>
           state.setCurrent(fa)
           state.pushStackFrame(f)
-
-        case WithErrorMessage(fa, errorMsg) =>
-          state.setCurrent(fa)
-          state.setErrorMsg(errorMsg)
+          state.pushErrorMsg(errorMsg)
       }
 
       state.incrCycleCount

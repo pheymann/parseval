@@ -1,10 +1,12 @@
 package parseval.parser
 
-import parseval.parser.Parser.{CharStreamNotEmpty, WithErrorMessage}
+import parseval.parser.Parser.CharStreamNotEmpty
 import parseval.parser.internal.ParserRuntime
 import parseval.parser.util.{NonEmptySeq, NumberHelper}
 
 sealed trait Parser[+A] {
+
+  def withError(msg: => String): Parser[A]
 
   def map[B](f: A => B): Parser[B] =
     Parser.FlatMap[A, B](this, a => Parser.Pure(ParserResult.Success(f(a))))
@@ -34,8 +36,6 @@ sealed trait Parser[+A] {
 
   def |[A0 >: A](fa: Parser[A0]): Parser[A0] = or(fa)
 
-  def withError(msg: => String): Parser[A] = WithErrorMessage(this, () => msg)
-
   def apply(stream: CharStream): (CharStream, ParserResult[A]) =
     eval(stream)
 
@@ -56,15 +56,25 @@ object Parser {
 
   final case class CharStreamNotEmpty[A](remaining: CharStream, result: ParserResult[A]) extends ParserError
 
-  final case class Pure[A](a: ParserResult[A]) extends Parser[A]
+  final case class Pure[A](a: ParserResult[A]) extends Parser[A] {
+    override def withError(msg: => String): Parser[A] = a match {
+      case success@ParserResult.Success(_)                      => Pure(success)
+      case ParserResult.Failed(FailedParserWithStack(error, stack)) => Pure(ParserResult.Failed(FailedParserWithStack(error, msg +: stack)))
+      case ParserResult.Failed(error)                           => Pure(ParserResult.Failed(FailedParserWithStack(error, Vector(msg))))
+    }
+  }
 
-  final case class Rule[A](arraySize: Int, parse: CharStream => ParserResult[A]) extends Parser[A]
+  final case class Rule[A](arraySize: Int, parse: CharStream => ParserResult[A], errorMsg: Option[() => ErrorMsg] = None) extends Parser[A] {
+    override def withError(msg: => String): Parser[A] = copy(errorMsg = Some(() => msg))
+  }
 
-  final case class Or[A](left: Parser[A], right: Parser[A]) extends Parser[A]
+  final case class Or[A](left: Parser[A], right: Parser[A], errorMsg: Option[() => ErrorMsg] = None) extends Parser[A] {
+    override def withError(msg: => String): Parser[A] = copy(errorMsg = Some(() => msg))
+  }
 
-  final case class FlatMap[A, B](fa: Parser[A], f: A => Parser[B]) extends Parser[B]
-
-  final case class WithErrorMessage[A](fa: Parser[A], msg: () => String) extends Parser[A]
+  final case class FlatMap[A, B](fa: Parser[A], f: A => Parser[B], errorMsg: Option[() => ErrorMsg] = None) extends Parser[B] {
+    override def withError(msg: => String): Parser[B] = copy(errorMsg = Some(() => msg))
+  }
 
   def pure[A](a: A): Parser[A] = Pure(ParserResult.Success(a))
 

@@ -24,7 +24,7 @@ object ParserResult {
   final case class Failed(error: ParserError) extends ParserResult[Nothing] {
     override def isSuccess = false
 
-    override def get = throw new NoSuchElementException("Failed-ParserState has no element")
+    override def get = throw new NoSuchElementException("ParserResult.Failed has no element")
 
     override def toEither: Either[ParserError, Nothing] = Left(error)
   }
