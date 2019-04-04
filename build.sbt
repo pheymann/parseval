@@ -23,9 +23,10 @@ val `compiler-2.12` = Seq(
 )
 
 val common = Seq(
-  organization  := "com.github.pheymann",
-  scalaVersion  := "2.12.7",
-  scalacOptions ++= `compiler-2.12`
+  organization         := "com.github.pheymann",
+  scalaVersion         := "2.12.7",
+  scalacOptions       ++= `compiler-2.12`,
+  libraryDependencies  += "org.specs2" %% "specs2-core" % "4.5.1" % "test"
 )
 
 lazy val root = project
@@ -34,16 +35,9 @@ lazy val root = project
 
 lazy val parser = project
   .in(file("parser"))
-  .settings(
-    common,
-    libraryDependencies ++= Seq(
-      "org.specs2" %% "specs2-core" % "4.5.1" % "test"
-    )
-  )
+  .settings(common)
 
 lazy val json = project
   .in(file("json"))
-  .settings(
-    common
-  )
+  .settings(common)
   .dependsOn(parser)
