@@ -1,8 +1,8 @@
-package onegraph.parser
+package parseval.parser
 
-import onegraph.parser.Parser.{CharStreamNotEmpty, WithErrorMessage}
-import onegraph.parser.internal.{ParserResult, ParserRuntime}
-import onegraph.parser.util.{NonEmptySeq, NumberHelper}
+import parseval.parser.Parser.{CharStreamNotEmpty, WithErrorMessage}
+import parseval.parser.internal.{ParserResult, ParserRuntime}
+import parseval.parser.util.{NonEmptySeq, NumberHelper}
 
 sealed trait Parser[A] {
 

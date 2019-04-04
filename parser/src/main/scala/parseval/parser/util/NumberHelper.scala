@@ -1,4 +1,4 @@
-package onegraph.parser.util
+package parseval.parser.util
 
 trait NumberHelper[A] {
 

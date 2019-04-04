@@ -1,4 +1,4 @@
-package onegraph.parser.util
+package parseval.parser.util
 
 case class NonEmptySeq[A](head: A, tail: Seq[A]) {
 

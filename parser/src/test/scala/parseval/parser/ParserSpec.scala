@@ -1,9 +1,9 @@
-package onegraph.parser
+package parseval.parser
 
-import onegraph.parser.internal.ParserResult
-import onegraph.parser.util.NonEmptySeq
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
+import parseval.parser.internal.ParserResult
+import parseval.parser.util.NonEmptySeq
 
 object ParserSpec extends Specification {
 

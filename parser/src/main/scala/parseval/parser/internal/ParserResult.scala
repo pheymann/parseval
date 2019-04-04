@@ -1,8 +1,8 @@
-package onegraph.parser.internal
+package parseval.parser.internal
 
 import java.util.NoSuchElementException
 
-import onegraph.parser.ParserError
+import parseval.parser.ParserError
 
 sealed trait ParserResult[+A] {
 

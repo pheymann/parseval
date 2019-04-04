@@ -1,6 +1,6 @@
-package onegraph.parser
+package parseval.parser
 
-import onegraph.parser.internal.ParserResult
+import parseval.parser.internal.ParserResult
 
 trait ParserError
 

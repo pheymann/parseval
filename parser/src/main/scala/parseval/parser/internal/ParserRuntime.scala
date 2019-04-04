@@ -1,6 +1,6 @@
-package onegraph.parser.internal
+package parseval.parser.internal
 
-import onegraph.parser._
+import parseval.parser._
 
 import scala.collection.mutable
 import scala.util.control.NonFatal
