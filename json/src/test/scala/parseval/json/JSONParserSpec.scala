@@ -51,6 +51,8 @@ object JSONParserSpec extends Specification {
   "JsString" >> {
     parseSuccess("\"\"", JsString(""))
     parseSuccess("\"hello1234\\\"\"", JsString("hello1234\""))
+
+    parseFailed("\"hello\"\"", CharStreamNotEmpty("\"".toVector, ParserResult.Success(JsString("hello"))))
   }
 
   private def parseSuccess[A <: JsValue](raw: String, result: A): MatchResult[Any] =
