@@ -4,7 +4,7 @@ import parseval.parser.Parser.{CharStreamNotEmpty, WithErrorMessage}
 import parseval.parser.internal.ParserRuntime
 import parseval.parser.util.{NonEmptySeq, NumberHelper}
 
-sealed trait Parser[A] {
+sealed trait Parser[+A] {
 
   def map[B](f: A => B): Parser[B] =
     Parser.FlatMap[A, B](this, a => Parser.Pure(ParserResult.Success(f(a))))
@@ -24,15 +24,15 @@ sealed trait Parser[A] {
   def right[B](fb: Parser[B]): Parser[B] =
     this.flatMap(_ => fb)
 
-  def combine(fa: Parser[A], f: (A, A) => A): Parser[A] =
+  def combine[A0 >: A](fa: Parser[A0], f: (A0, A0) => A0): Parser[A0] =
     for {
       x <- this
       y <- fa
     } yield f(x, y)
 
-  def or(fa: Parser[A]): Parser[A] = Parser.Or(this, fa)
+  def or[A0 >: A](fa: Parser[A0]): Parser[A0] = Parser.Or(this, fa)
 
-  def |(fa: Parser[A]): Parser[A] = or(fa)
+  def |[A0 >: A](fa: Parser[A0]): Parser[A0] = or(fa)
 
   def withError(msg: => String): Parser[A] = WithErrorMessage(this, () => msg)
 
@@ -132,11 +132,18 @@ object Parser {
   val whitespace  = skip(whitespaceParser)
   val whitespaces = skipMany(whitespaceParser)
 
+  val control = satisfies(_.isControl).withError("not a control character")
+
   val letter  = satisfies(_.isLetter).withError("not a letter")
   val letters = many(letter)
 
   val digit  = satisfies(_.isDigit).withError("not a digit")
   val digits = many(digit)
+
+  private val hexCharacters = Set('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'F')
+
+  val hexDigit  = satisfies(hexCharacters)
+  val hexDigits = many(hexDigit)
 
   def char(c: Char): Parser[Char] =
     satisfies(_ == c).withError(s"not equals to '$c'")
@@ -155,6 +162,14 @@ object Parser {
 
     satisfies(lit.length, _.sameElements(chars)).withError(s"not equal to ${chars.mkString("\"", "", "\"")}")
   }
+
+  val doubleQuote    = char('\"')
+  val reverseSolidus = char('\\')
+  val backspace      = char('\b')
+  val formFeed       = char('\f')
+  val newline        = char('\n')
+  val carriageReturn = char('\r')
+  val tab            = char('\t')
 
   // Number
 
@@ -210,7 +225,7 @@ object Parser {
   }
 
   private def scientific(base: Int) =
-    oneOfChar('e' , 'E').right(natural).map(exp => base.toDouble * Math.pow(10d, exp.toDouble))
+    oneOfChar('e' , 'E').right(int).map(exp => base.toDouble * Math.pow(10d, exp.toDouble))
 
   private def floating(base: Int) =
     char('.').right(natural).map { fl =>
@@ -254,14 +269,29 @@ object Parser {
 
   def lexeme[A](parser: Parser[A]) = parser.left(whitespaces)
 
-  val word = lexeme(letters).map(_.mkString(""))
+  val stringRaw = many(
+    letter
+      | digit
+      | doubleQuote
+      | reverseSolidus
+      | backspace
+      | formFeed
+      | newline
+      | carriageReturn
+      | tab
+      | control
+  )
+
+  val string = stringRaw.map(_.mkString(""))
+
+  val word = lexeme(string).map(_.mkString(""))
 
   val comma = skip(char(','))
 
   def commaSep[A](parser: Parser[A]): Parser[Seq[A]] = {
     val as = for {
       a  <- parser
-      _  <- comma.right(whitespaces)
+      _  <- lexeme(comma)
       as <- commaSep(parser)
     } yield a +: as
 

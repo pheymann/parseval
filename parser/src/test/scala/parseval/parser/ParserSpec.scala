@@ -136,6 +136,7 @@ object ParserSpec extends Specification {
       evalAndCheckSuccess(float, "-1.0f", "", -1f)
       evalAndCheckSuccess(float, "11e2", "", 1100f)
       evalAndCheckSuccess(float, "11E2", "", 1100f)
+      evalAndCheckSuccess(float, "11E-2", "", 0.11f)
       evalAndCheckSuccess(float, "1.0d", "d", 1.0f)
 
       val (remaining, result) = float.eval("1.111f".toVector)
@@ -154,6 +155,7 @@ object ParserSpec extends Specification {
       evalAndCheckSuccess(double, "-1.0d", "", -1d)
       evalAndCheckSuccess(double, "11e2", "", 1100d)
       evalAndCheckSuccess(double, "11E2", "", 1100d)
+      evalAndCheckSuccess(double, "11E-2", "", 0.11d)
 
       val (remaining, result) = double.eval("1.111d".toVector)
 
