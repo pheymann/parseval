@@ -5,7 +5,7 @@ import org.specs2.mutable.Specification
 import parseval.parser.Parser.{CharStreamNotEmpty, FailedCondition}
 import parseval.parser.{FailedParserWithStack, ParserError, ParserResult}
 
-object JsValueParserSpec extends Specification {
+object JSONParserSpec extends Specification {
 
   sequential
 
