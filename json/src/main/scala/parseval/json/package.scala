@@ -9,14 +9,14 @@ package object json {
   object parsers {
 
     val quotedString = lexeme(doubleQuote right string left doubleQuote)
-    val jsString = quotedString.map(JsString)
-    val jsNumber = lexeme(double).map(JsNumber)
-    val jsTrue = lexeme(literal("true")).map(_ => JsTrue)
-    val jsFalse = lexeme(literal("false")).map(_ => JsFalse)
-    val jsNull = lexeme(literal("null")).map(_ => JsNull)
+    val jsString     = quotedString.map(JsString)
+    val jsNumber     = lexeme(double).map(JsNumber)
+    val jsTrue       = lexeme(literal("true")).map(_ => JsTrue)
+    val jsFalse      = lexeme(literal("false")).map(_ => JsFalse)
+    val jsNull       = lexeme(literal("null")).map(_ => JsNull)
 
     private def keyValue: Parser[(String, JsValue)] = for {
-      key <- whitespaces right quotedString left lexeme(char(':'))
+      key   <- whitespaces right quotedString left lexeme(char(':'))
       value <- jsValue
     } yield key -> value
 
@@ -28,16 +28,17 @@ package object json {
 
     def jsArray: Parser[JsArray] = bracket(
       char('['),
-      commaSep(jsValue).map(values => JsArray(values.toArray)),
+      // pure is needed to make `commaSep` lazy
+      pure(()).flatMap(_ => commaSep(jsValue).map(values => JsArray(values.toArray))),
       char(']')
     )
 
     def jsValue: Parser[JsValue] =
-      jsString |
-        jsNumber |
+      jsNull |
         jsTrue |
         jsFalse |
-        jsNull |
+        jsString |
+        jsNumber |
         jsObject |
         jsArray
   }
