@@ -173,13 +173,22 @@ object Parser {
     satisfies(lit.length, _.sameElements(chars)).withError(s"not equal to ${chars.mkString("\"", "", "\"")}")
   }
 
-  val doubleQuote    = char('\"')
-  val reverseSolidus = char('\\')
-  val backspace      = char('\b')
-  val formFeed       = char('\f')
-  val newline        = char('\n')
-  val carriageReturn = char('\r')
-  val tab            = char('\t')
+  val quote                 = char('\'')
+  val escapedQuote          = literalRaw("\\\'").map(_ => '\'')
+  val doubleQuote           = char('"')
+  val escapedDoubleQuote    = literalRaw("\\\"").map(_ => '\"')
+  val reverseSolidus        = char('\\')
+  val escapedReverseSolidus = literalRaw("\\\\").map(_ => '\\')
+  val backspace             = char('\b')
+  val escapedBackspace      = literalRaw("\\b").map(_ => '\b')
+  val formFeed              = char('\f')
+  val escapedFormFeed       = literalRaw("\\f").map(_ => '\f')
+  val newline               = char('\n')
+  val escapedNewline        = literalRaw("\\n").map(_ => '\n')
+  val carriageReturn        = char('\r')
+  val escapedCarriageReturn = literalRaw("\\r").map(_ => '\r')
+  val tab                   = char('\t')
+  val escapedTab            = literalRaw("\\t").map(_ => '\t')
 
   // Number
 
@@ -282,13 +291,14 @@ object Parser {
   val stringRaw = many(
     letter
       | digit
-      | doubleQuote
-      | reverseSolidus
-      | backspace
-      | formFeed
-      | newline
-      | carriageReturn
-      | tab
+      | escapedQuote
+      | escapedDoubleQuote
+      | escapedReverseSolidus
+      | escapedBackspace
+      | escapedFormFeed
+      | escapedNewline
+      | escapedCarriageReturn
+      | escapedTab
       | control
   )
 

@@ -168,7 +168,7 @@ object ParserRuntime {
               finalResult = state.failedResultFromErrorMsg(result.asInstanceOf[ParserResult.Failed])
             }
           }
-          else if (state.stackFramesLeft && state.orBranchesLeft) {
+          else if (state.orBranchesLeft) {
             state.setCurrent(state.popStackUntilOrBranch())
           }
           else {
