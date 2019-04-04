@@ -284,8 +284,6 @@ object Parser {
 
   val string = stringRaw.map(_.mkString(""))
 
-  val word = lexeme(string).map(_.mkString(""))
-
   val comma = skip(char(','))
 
   def commaSep[A](parser: Parser[A]): Parser[Seq[A]] = {

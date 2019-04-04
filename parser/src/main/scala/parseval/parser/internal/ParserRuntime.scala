@@ -87,8 +87,8 @@ object ParserRuntime {
 
     def splitStreamChars(readCount: Int): (CharStream, CharStream) = stream.splitAt(readCount)
 
-    def failedResultFromErrorMsg(cause: ParserResult[Any]): ParserResult[Any] =
-      errorMsg.fold(cause)(msg => ParserResult.Failed(FailedParserWithMsg(msg(), cause)))
+    def failedResultFromErrorMsg(cause: ParserResult.Failed): ParserResult[Any] =
+      errorMsg.fold(cause)(msg => ParserResult.Failed(FailedParserWithMsg(msg(), cause.error)))
 
     def incrCycleCount = cycleCount += 1
 
@@ -131,7 +131,7 @@ object ParserRuntime {
             finalResult = value
           }
           else {
-            finalResult = state.failedResultFromErrorMsg(value)
+            finalResult = state.failedResultFromErrorMsg(value.asInstanceOf[ParserResult.Failed])
           }
 
         case Rule(readCount, parse) =>
@@ -158,7 +158,7 @@ object ParserRuntime {
             }
             else {
               // TODO add line number, column information
-              finalResult = state.failedResultFromErrorMsg(result)
+              finalResult = state.failedResultFromErrorMsg(result.asInstanceOf[ParserResult.Failed])
             }
           }
           else if (state.stackFramesLeft && state.orBranchesLeft) {
