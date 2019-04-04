@@ -147,6 +147,15 @@ object Parser {
     satisfies(charSet.contains).withError(s"not in ${charSet.mkString("[", ", ", "]")}")
   }
 
+  def literal(lit: String): Parser[String] =
+    literalRaw(lit).map(_.mkString(""))
+
+  def literalRaw(lit: String): Parser[CharStream] = {
+    val chars = lit.toCharArray
+
+    satisfies(lit.length, _.sameElements(chars)).withError(s"not equal to ${chars.mkString("\"", "", "\"")}")
+  }
+
   // Number
 
   def positiveNumber[A: NumberHelper]: Parser[A] = {
@@ -243,16 +252,9 @@ object Parser {
 
   // Token
 
-  def literal(lit: String): Parser[String] =
-    literalRaw(lit).map(_.mkString(""))
+  def lexeme[A](parser: Parser[A]) = parser.left(whitespaces)
 
-  def literalRaw(lit: String): Parser[CharStream] = {
-    val chars = lit.toCharArray
-
-    satisfies(lit.length, _.sameElements(chars)).withError(s"not equal to ${chars.mkString("\"", "", "\"")}")
-  }
-
-  val word = letters.left(whitespaces).map(_.mkString(""))
+  val word = lexeme(letters).map(_.mkString(""))
 
   val comma = skip(char(','))
 

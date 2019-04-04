@@ -96,6 +96,12 @@ object ParserSpec extends Specification {
       evalAndCheckSuccess(oneOfChar('a', 'b'), "b", "", 'b')
       evalAndCheckFailed(oneOfChar('a', 'b'), "c", "c", FailedParserWithMsg("not in [a, b]", ParserResult.Failed(FailedCondition(Vector('c')))))
     }
+
+    "literal" >> {
+      evalAndCheckSuccess(literal("hello"), "hello", "", "hello")
+      evalAndCheckSuccess(literal("hello"), "hello, you", ", you", "hello")
+      evalAndCheckFailed(literal("hello"), "yello", "yello", FailedParserWithMsg("not equal to \"hello\"", ParserResult.Failed(FailedCondition("yello".toVector))))
+    }
   }
 
   "number" >> {
@@ -159,12 +165,6 @@ object ParserSpec extends Specification {
   }
 
   "token" >> {
-    "literal" >> {
-      evalAndCheckSuccess(literal("hello"), "hello", "", "hello")
-      evalAndCheckSuccess(literal("hello"), "hello, you", ", you", "hello")
-      evalAndCheckFailed(literal("hello"), "yello", "yello", FailedParserWithMsg("not equal to \"hello\"", ParserResult.Failed(FailedCondition("yello".toVector))))
-    }
-    
     "words" >> {
       evalAndCheckSuccess(word, "hello", "", "hello")
       evalAndCheckSuccess(word, "hello    ", "", "hello")
