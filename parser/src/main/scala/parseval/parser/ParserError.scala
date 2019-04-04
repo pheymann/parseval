@@ -1,7 +1,5 @@
 package parseval.parser
 
-import parseval.parser.internal.ParserResult
-
 trait ParserError
 
 final case class NotEnoughCharacters(actual: Int, expected: Int) extends ParserError

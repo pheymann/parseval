@@ -2,7 +2,7 @@ package parseval.parser.internal
 
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
-import parseval.parser.{FailedParserWithMsg, NotEnoughCharacters, Parser, ParserError}
+import parseval.parser._
 import parseval.parser.internal.ParserRuntime.RuntimeState
 
 object ParserRuntimeSpec extends Specification {

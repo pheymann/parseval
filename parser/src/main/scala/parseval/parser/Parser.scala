@@ -1,7 +1,7 @@
 package parseval.parser
 
 import parseval.parser.Parser.{CharStreamNotEmpty, WithErrorMessage}
-import parseval.parser.internal.{ParserResult, ParserRuntime}
+import parseval.parser.internal.ParserRuntime
 import parseval.parser.util.{NonEmptySeq, NumberHelper}
 
 sealed trait Parser[A] {

@@ -1,8 +1,6 @@
-package parseval.parser.internal
+package parseval.parser
 
 import java.util.NoSuchElementException
-
-import parseval.parser.ParserError
 
 sealed trait ParserResult[+A] {
 

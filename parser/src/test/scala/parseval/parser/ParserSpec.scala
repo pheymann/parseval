@@ -2,7 +2,6 @@ package parseval.parser
 
 import org.specs2.matcher.MatchResult
 import org.specs2.mutable.Specification
-import parseval.parser.internal.ParserResult
 import parseval.parser.util.NonEmptySeq
 
 object ParserSpec extends Specification {
