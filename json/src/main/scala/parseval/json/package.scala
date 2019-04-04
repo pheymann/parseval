@@ -9,38 +9,42 @@ package object json {
   object parsers {
 
     val quotedString = lexeme(doubleQuote right string left doubleQuote)
-    val jsString     = quotedString.map(JsString)
-    val jsNumber     = lexeme(double).map(JsNumber)
-    val jsTrue       = lexeme(literal("true")).map(_ => JsTrue)
-    val jsFalse      = lexeme(literal("false")).map(_ => JsFalse)
-    val jsNull       = lexeme(literal("null")).map(_ => JsNull)
 
-    private def keyValue: Parser[(String, JsValue)] = for {
-      key   <- whitespaces right quotedString left lexeme(char(':'))
-      value <- jsValue
-    } yield key -> value
+    val jsString     = quotedString.map(JsString)                       withError "failed to read JsString"
+    val jsNumber     = lexeme(double).map(JsNumber)                     withError "failed to read JsNumber"
+    val jsTrue       = lexeme(literal("true")).map(_ => JsTrue)    withError "failed to read JsTrue"
+    val jsFalse      = lexeme(literal("false")).map(_ => JsFalse)  withError "failed to read JsFalse"
+    val jsNull       = lexeme(literal("null")).map(_ => JsNull)    withError "failed to read JsNull"
 
-    def jsObject: Parser[JsObject] = bracket(
+    private val keyValue: Parser[(String, JsValue)] =
+      for {
+        key   <- whitespaces right quotedString left lexeme(char(':'))  withError "failed to read key from JsObject"
+        value <- jsValue
+      } yield key -> value
+
+    lazy val jsObject: Parser[JsObject] = bracket(
       char('{'),
       many(keyValue left lexeme(comma)).map(fields => JsObject(fields.toMap)),
       char('}')
-    )
+    ) withError "failed to read JsObject"
 
-    def jsArray: Parser[JsArray] = bracket(
+    lazy val jsArray: Parser[JsArray] = bracket(
       char('['),
       // pure is needed to make `commaSep` lazy
       pure(()).flatMap(_ => commaSep(jsValue).map(values => JsArray(values.toArray))),
       char(']')
-    )
+    ) withError "failed to read JsArray"
 
-    def jsValue: Parser[JsValue] =
-      jsNull |
-        jsTrue |
-        jsFalse |
-        jsString |
-        jsNumber |
-        jsObject |
-        jsArray
+    lazy val jsValue: Parser[JsValue] =
+      (
+        jsNull
+          | jsTrue
+          | jsFalse
+          | jsString
+          | jsNumber
+          | jsObject
+          | jsArray
+      ) withError "failed to read any JsValue type"
   }
 
   def parse(raw: String): ParserResult[JsValue] = {
